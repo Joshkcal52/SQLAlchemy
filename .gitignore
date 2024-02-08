@@ -1,0 +1,5 @@
+.env
+Pipfile.lock
+controllers/__pycache__
+routes/__pycache__
+__pycache__

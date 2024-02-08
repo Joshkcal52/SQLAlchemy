@@ -1,92 +1,60 @@
 import psycopg2
+import os
 from flask import jsonify, request
 
-
-def db_conn():
-    return psycopg2.connect(
-        dbname="postgres_assignment",
-        user="josh",
-        host="localhost",
-    )
-
-
-def execute_query(query, params=None, fetchall=False):
-    conn = db_conn()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(query, params)
-        conn.commit()
-
-        if fetchall:
-            return cursor.fetchall()
-    except Exception as e:
-        print(f"Error: {e}")
-        conn.rollback()
-    finally:
-        cursor.close()
-        conn.close()
+database_name = os.environ.get('DATABASE_NAME')
+conn = psycopg2.connect(f"dbname={database_name}")
+cursor = conn.cursor()
 
 
 def create_product():
-    data = request.get_json()
-    new_product = {
-        'company_id': data['company_id'],
-        'company_name': data['company_name'],
-        'price': data['price'],
-        'description': data['description'],
-        'active': data['active']
-    }
+    post_data = request.form if request.form else request.json
+    product_name = post_data.get("product_name")
 
-    try:
-        query = '''
-            INSERT INTO ProductsTable (company_id, company_name, price, description, active)
-            VALUES (%s, %s, %s, %s, %s)
-        '''
-        execute_query(query, (new_product['company_id'], new_product['company_name'], new_product['price'],
-                              new_product['description'], new_product['active']))
-        return jsonify({'message': 'Product created successfully'}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if not product_name:
+        return jsonify({"message": "product name required"}), 400
+
+    cursor.execute("INSERT INTO Products (product_name) VALUES (%s)", [product_name])
+
+    conn.commit()
+
+    return jsonify({"message": "product added"}), 201
 
 
 def get_all_products():
-    query = 'SELECT * FROM ProductsTable'
-    products_data = execute_query(query, fetchall=True)
-    return jsonify({'products': [dict(row) for row in products_data]})
+    cursor.execute('SELECT * FROM Products')
+    results = cursor.fetchall()
+
+    return jsonify({'products': results}), 200
 
 
 def get_product_by_id(id):
-    query = 'SELECT * FROM ProductsTable WHERE product_id = %s'
-    params = (id,)
-
-    product_data = execute_query(query, params=params, fetchall=False)
-
-    if product_data:
-        return jsonify(dict(product_data))
-    return jsonify({'message': 'Product not found'}), 404
+    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
+    record = cursor.fetchone()
+    return jsonify({'product': record}), 200
 
 
 def update_product(id):
     data = request.get_json()
+    product_name = data.get('product_name')
 
-    try:
-        query = '''
-            UPDATE ProductsTable
-            SET company_id = %s, company_name = %s, price = %s, description = %s, active = %s
-            WHERE product_id = %s
-        '''
-        execute_query(query, (data['company_id'], data['company_name'], data['price'],
-                              data['description'], data['active'], id))
-        return jsonify({'message': 'Product updated successfully'}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
+
+    if product_name is None:
+        return jsonify({"message": "product name required"}), 400
+
+    cursor.execute('UPDATE Products SET product_name = %s WHERE product_id = %s', [data['product_name'], id])
+    conn.commit()
+    return jsonify({'message': 'Product updated'}), 200
 
 
 def delete_product(id):
-    try:
-        query = 'DELETE FROM ProductsTable WHERE product_id = %s'
-        execute_query(query, (id,))
-        return jsonify({'message': 'Product deleted successfully'}), 204
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
+    record = cursor.fetchone()
+
+    if record:
+        cursor.execute('DELETE FROM Products WHERE product_id = %s', [id])
+
+    conn.commit()
+
+    return jsonify({'message': 'Product deleted successfully'}), 200

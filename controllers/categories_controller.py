@@ -1,88 +1,64 @@
 import psycopg2
+import os
 from flask import jsonify, request
 
-
-def db_conn():
-    return psycopg2.connect(
-        dbname="postgres_assignment",
-        user="josh",
-        host="localhost",
-    )
-
-
-def execute_query(query, params=None, fetchall=False):
-    conn = db_conn()
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(query, params)
-        conn.commit()
-
-        if fetchall:
-            return cursor.fetchall()
-    except Exception as e:
-        print(f"Error: {e}")
-        conn.rollback()
-    finally:
-        cursor.close()
-        conn.close()
+database_name = os.environ.get('DATABASE_NAME')
+conn = psycopg2.connect(f"dbname={database_name}")
+cursor = conn.cursor()
 
 
 def create_category():
     post_data = request.form if request.form else request.json
     category_name = post_data.get("category_name")
 
-    query = '''
-        INSERT INTO CategoriesTable (category_name)
-        VALUES (%s)
-    '''
+    if not category_name:
+        return jsonify({"message": "category name required"}), 400
 
-    execute_query(query, [category_name])
+    cursor.execute("INSERT INTO Categories (category_name) VALUES (%s)", [category_name])
+
+    conn.commit()
+
+    return jsonify({"message": "category added"}), 201
 
 
 def get_all_categories():
-    query = 'SELECT * FROM CategoriesTable'
-    rows = execute_query(query, fetchall=True)
+    cursor.execute('SELECT * FROM Categories')
+    results = cursor.fetchall()
 
-    categories_data = [dict(row) for row in rows]
-
-    return jsonify({'categories': categories_data})
+    return jsonify({'categories': results}), 200
 
 
 def get_category_by_id(id):
-    query = 'SELECT * FROM CategoriesTable WHERE category_id = %s'
-    params = (id,)
+    params = {'id': id}
+    cursor.execute('SELECT * FROM Categories WHERE category_id = %(id)s', params)
+    record = cursor.fetchone()
 
-    category_data = execute_query(query, params=params, fetchall=False)
+    if record:
+        return jsonify({'category': record}), 200
 
-    if category_data:
-        return jsonify(dict(category_data))
     return jsonify({'message': 'Category not found'}), 404
 
 
 def update_category(id):
     data = request.get_json()
 
-    category_exists = execute_query('SELECT EXISTS(SELECT 1 FROM CategoriesTable WHERE category_id = %s)', (id,), fetchall=False)
+    category_exists_query = 'SELECT EXISTS(SELECT 1 FROM Categories WHERE category_id = %(id)s)'
+    cursor.execute(category_exists_query, {'id': id})
+    category_exists = cursor.fetchone()[0]
 
     if category_exists:
-        try:
-            if 'category_name' in data:
-                execute_query('UPDATE CategoriesTable SET category_name = %s WHERE category_id = %s', (data['category_name'], id))
-
-            return jsonify({'message': 'Category updated successfully'}), 204
-
-        except Exception as e:
-            print(f"Error: {e}")
-            return jsonify({'error': str(e)}), 500
+        if 'category_name' in data:
+            update_query = 'UPDATE Categories SET category_name = %(category_name)s WHERE category_id = %(id)s'
+            cursor.execute(update_query, {'category_name': data['category_name'], 'id': id})
+            conn.commit()
+        return jsonify({'message': 'Category updated successfully'}), 200
 
     return jsonify({'message': 'Category not found'}), 404
 
 
 def delete_category(id):
-    try:
-        query = 'DELETE FROM CategoriesTable WHERE category_id = %s'
-        execute_query(query, (id,))
-        return jsonify({'message': 'Category deleted successfully'}), 204
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    delete_query = 'DELETE FROM Categories WHERE category_id = %(id)s'
+    cursor.execute(delete_query, {'id': id})
+    conn.commit()
+
+    return jsonify({'message': 'Category deleted successfully'}), 200
