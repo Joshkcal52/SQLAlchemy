@@ -1,61 +1,102 @@
-import psycopg2
-import os
 from flask import jsonify, request
 
-
-database_name = os.environ.get('DATABASE_NAME')
-conn = psycopg2.connect(f"dbname={database_name}")
-cursor = conn.cursor()
+from db import db
+from models.company import Companies
 
 
-def create_company():
-    post_data = request.form if request.form else request.json
-    company_name = post_data.get("company_name")
+def create_company(req):
+    post_data = req.form if req.form else req.json
 
-    if not company_name:
-        return jsonify({"message": "company name required"}), 400
+    fields = ['company_name']
+    required_fields = ['company_name']
 
-    cursor.execute("INSERT INTO Companies (company_name) VALUES (%s)", [company_name])
+    values = {}
 
-    conn.commit()
+    for field in fields:
+        field_data = post_data.get(field)
+        if field_data in required_fields and not field_data:
+            return jsonify({"message": f'{field} is required'}), 400
 
-    return jsonify({"message": "company added"}), 201
+        values[field] = field_data
+
+    new_company = Companies(values['company_name'])
+
+    try:
+        db.session.add(new_company)
+        db.session.commit()
+    except:
+        db.session.rollback()
+        return jsonify({"message": "unable to create record"}), 400
+
+    query = db.session.query(Companies).filter(Companies.company_name == values['company_name']).first()
+
+    values['company_id'] = query.company_id
+
+    return jsonify({"message": "company created", "result": values}), 200
 
 
 def get_all_companies():
-    cursor.execute('SELECT * FROM Companies')
-    results = cursor.fetchall()
+    query = db.session.query(Companies).all()
+    if not query:
+        return jsonify({'message': 'There are no companies'}), 404
+    companies_list = []
 
-    return jsonify({'companies': results}), 200
+    for companies in query:
+        companies_list.append({
+            'company_name': companies.company_name,
+            'company_id': companies.company_id
+        })
+
+    return jsonify({'companies': companies_list}), 200
 
 
 def get_company_by_id(id):
-    cursor.execute('SELECT * FROM Companies WHERE company_id = %s', [id])
-    record = cursor.fetchone()
-    return jsonify({'company': record}), 200
+    query = db.session.query(Companies).filter(Companies.company_id == id).first()
+    if not query:
+        return jsonify({'message': 'There are no companies'}), 404
+    companies_list = []
+
+    companies_list.append({
+        'company_name': query.company_name,
+        'company_id': query.company_id
+    })
+
+    return jsonify({'companies': companies_list}), 200
 
 
-def update_company(id):
-    data = request.get_json()
-    company_name = data.get('company_name')
+def update_company(req, id):
+    post_data = req.form if req.form else req.json
+    query = db.session.query(Companies).filter(Companies.company_id == id).first()
+    if not query:
+        return jsonify({'message': 'There are no companies matching that id'}), 404
 
-    cursor.execute('SELECT * FROM Companies WHERE company_id = %s', [id])
+    query.company_name = post_data.get('company_name', query.company_name)
 
-    if company_name is None:
-        return jsonify({"message": "company name required"}), 400
+    try:
+        db.session.commit()
 
-    cursor.execute('UPDATE Companies SET company_name = %s WHERE company_id = %s', [data['company_name'], id])
-    conn.commit()
-    return jsonify({'message': 'Company updated'}), 200
+    except:
+        db.session.rollback()
+        return jsonify({'message': 'company did not update'}), 400
+
+    updated_record = {
+        "company_name": query.company_name
+    }
+
+    return jsonify({'message': 'company updated', "updated company name": updated_record}), 200
 
 
 def delete_company(id):
-    cursor.execute('SELECT * FROM Companies WHERE company_id = %s', [id])
-    record = cursor.fetchone()
+    query = db.session.query(Companies).filter(Companies.company_id == id).first()
+    if not query:
+        return jsonify({'message': 'There are no companies matching that id'}), 404
 
-    if record:
-        cursor.execute('DELETE FROM Companies WHERE company_id = %s', [id])
+    try:
+        db.session.delete(query)
+        db.session.commit()
 
-    conn.commit()
+    except:
+        db.session.rollback()
+        return jsonify({'message': 'company was not deleted'}), 400
 
     return jsonify({'message': 'Company deleted successfully'}), 200

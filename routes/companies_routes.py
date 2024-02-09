@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 from controllers.companies_controller import create_company, get_all_companies, get_company_by_id, update_company, delete_company
 
 company = Blueprint('company', __name__)
@@ -21,7 +21,7 @@ def get_company_by_id_route(id):
 
 @company.route('/company/update/<id>', methods=['PUT'])
 def update_company_route(id):
-    return update_company(id)
+    return update_company(request, id)
 
 
 @company.route('/company/delete/<id>', methods=['DELETE'])

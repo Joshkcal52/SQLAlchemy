@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 from controllers.products_controller import create_product, get_all_products, get_product_by_id, update_product, delete_product
 
 products = Blueprint('products', __name__)
@@ -21,7 +21,7 @@ def get_product_by_id_route(id):
 
 @products.route('/product/update/<id>', methods=['PUT'])
 def update_product_route(id):
-    return update_product(id)
+    return update_product(request, id)
 
 
 @products.route('/product/delete/<id>', methods=['DELETE'])

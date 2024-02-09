@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 flask = "*"
 psycopg2 = "*"
+sqlalchemy = "*"
+flask-sqlalchemy = "*"
 
 [dev-packages]
 

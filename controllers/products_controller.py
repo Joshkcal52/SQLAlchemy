@@ -1,60 +1,99 @@
-import psycopg2
-import os
 from flask import jsonify, request
-
-database_name = os.environ.get('DATABASE_NAME')
-conn = psycopg2.connect(f"dbname={database_name}")
-cursor = conn.cursor()
+from db import db
+from models.products import Products
 
 
-def create_product():
-    post_data = request.form if request.form else request.json
-    product_name = post_data.get("product_name")
+def create_product(req):
+    post_data = req.form if req.form else req.json
 
-    if not product_name:
-        return jsonify({"message": "product name required"}), 400
+    product_name = post_data.get('product_name')
+    price = post_data.get('price')
+    company_id = post_data.get('company_id')
 
-    cursor.execute("INSERT INTO Products (product_name) VALUES (%s)", [product_name])
+    if not post_data.get('description'):
+        description = ''
+    else:
+        description = post_data.get('description')
 
-    conn.commit()
+    new_product = Products(product_name=product_name, description=description, price=price, company_id=company_id)
 
-    return jsonify({"message": "product added"}), 201
+    try:
+        db.session.add(new_product)
+        db.session.commit()
+        new_product_details = {
+            "product_id": new_product.product_id,
+            "product_name": new_product.product_name,
+            "description": new_product.description,
+            "price": new_product.price,
+            "company_id": new_product.company_id
+        }
+        return jsonify({"message": "Product created", 'new_product': new_product_details}), 200
+    except:
+        db.session.rollback()
+        return jsonify({"message": "Unable to create product"}), 400
 
 
 def get_all_products():
-    cursor.execute('SELECT * FROM Products')
-    results = cursor.fetchall()
+    products = Products.query.all()
 
-    return jsonify({'products': results}), 200
+    products_list = [{
+        'product_id': product.product_id,
+        'product_name': product.product_name,
+        'description': product.description,
+        'price': product.price,
+        'company_id': product.company_id
+    } for product in products]
+
+    return jsonify({'products': products_list}), 200
 
 
 def get_product_by_id(id):
-    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
-    record = cursor.fetchone()
-    return jsonify({'product': record}), 200
+    product = Products.query.get(id)
+
+    if product:
+        product_details = {
+            'product_id': product.product_id,
+            'product_name': product.product_name,
+            'description': product.description,
+            'price': product.price,
+            'company_id': product.company_id
+        }
+
+        return jsonify({'product': product_details}), 200
+
+    return jsonify({'message': 'Product not found'}), 404
 
 
 def update_product(id):
     data = request.get_json()
-    product_name = data.get('product_name')
+    product = Products.query.get(id)
 
-    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
+    if product:
+        if 'product_name' in data:
+            product.product_name = data['product_name']
 
-    if product_name is None:
-        return jsonify({"message": "product name required"}), 400
+        try:
+            db.session.commit()
+            return jsonify({'message': 'Product updated successfully'}), 200
 
-    cursor.execute('UPDATE Products SET product_name = %s WHERE product_id = %s', [data['product_name'], id])
-    conn.commit()
-    return jsonify({'message': 'Product updated'}), 200
+        except:
+            db.session.rollback()
+            return jsonify({'message': 'Product update failed'}), 500
+
+    return jsonify({'message': 'Product not found'}), 404
 
 
 def delete_product(id):
-    cursor.execute('SELECT * FROM Products WHERE product_id = %s', [id])
-    record = cursor.fetchone()
+    product = Products.query.get(id)
 
-    if record:
-        cursor.execute('DELETE FROM Products WHERE product_id = %s', [id])
+    if product:
+        try:
+            db.session.delete(product)
+            db.session.commit()
+            return jsonify({'message': 'Product deleted successfully'}), 200
 
-    conn.commit()
+        except:
+            db.session.rollback()
+            return jsonify({'message': 'Product deletion failed'}), 500
 
-    return jsonify({'message': 'Product deleted successfully'}), 200
+    return jsonify({'message': 'Product not found'}), 404
