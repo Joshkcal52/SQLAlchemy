@@ -64,7 +64,7 @@ def get_product_by_id(id):
     return jsonify({'message': 'Product not found'}), 404
 
 
-def update_product(id):
+def update_product(req, id):
     data = request.get_json()
     product = Products.query.get(id)
 

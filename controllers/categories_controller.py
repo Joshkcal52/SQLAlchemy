@@ -39,7 +39,7 @@ def get_category_by_id(id):
     return jsonify({'message': 'Category not found'}), 404
 
 
-def update_category(id):
+def update_category(req, id):
     data = request.get_json()
     category = Categories.query.get(id)
 

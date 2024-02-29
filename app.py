@@ -10,7 +10,7 @@ from routes.products_routes import products
 
 
 flask_host = os.environ.get("FLASK_HOST")
-flask_port = os.environ.get("FLASK_POST")
+flask_port = os.environ.get("FLASK_PORT")
 
 database_scheme = os.environ.get("DATABASE_SCHEME")
 database_user = os.environ.get("DATABASE_USER")

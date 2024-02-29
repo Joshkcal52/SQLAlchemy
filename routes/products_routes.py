@@ -6,7 +6,7 @@ products = Blueprint('products', __name__)
 
 @products.route('/product', methods=['POST'])
 def create_product_route():
-    return create_product()
+    return create_product(request)
 
 
 @products.route('/products', methods=['GET'])
@@ -19,7 +19,7 @@ def get_product_by_id_route(id):
     return get_product_by_id(id)
 
 
-@products.route('/product/update/<id>', methods=['PUT'])
+@products.route('/product/<id>', methods=['PUT'])
 def update_product_route(id):
     return update_product(request, id)
 
